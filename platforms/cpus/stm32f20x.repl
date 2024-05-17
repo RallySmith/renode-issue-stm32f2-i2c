@@ -1,0 +1,5 @@
+// STM32F20[57] only
+
+sysbus:
+    init:
+        ApplySVD @https://github.com/posborne/cmsis-svd/blob/master/data/STMicro/STM32F20x.svd

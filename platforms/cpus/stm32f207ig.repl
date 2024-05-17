@@ -1,0 +1,4 @@
+using "platforms/cpus/stm32f2.repl"
+using "platforms/cpus/stm32f20x.repl"
+using "platforms/cpus/stm32f2x7.repl"
+using "platforms/cpus/stm32f2xxxg.repl"

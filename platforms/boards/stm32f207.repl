@@ -1,0 +1,20 @@
+// STM32F207IG
+using "platforms/cpus/stm32f207ig.repl"
+
+button: Miscellaneous.Button @ gpioPortG 15
+    -> gpioPortG@15
+//    IRQ -> gpioPortG@15
+//    invert: true
+
+// 16Mbit SRAM IS61WV102416BLL-10MLI
+// Shares same I/O as CAN1 so JP3 and JP10 on real H/W must be open
+u6_sram: Memory.MappedMemory @ sysbus 0x64000000
+    size: 0x00200000
+
+// I2C
+
+// hal_stm32_i2c_asrc_cs8422 I2C1 CS8422
+// 7-bit addr
+asrc_cs8422: I2C.CS8422 @ i2c1 0x10
+    revision: "B1"
+//    revision: "A"

@@ -1,0 +1,9 @@
+// STM32F2[01]7 only
+
+ethernet: Network.SynopsysEthernetMAC @ sysbus 0x40028000
+    -> nvic@61
+
+sysbus:
+    init:
+        Tag <0xA0000000, 0xA0000FFF> "FSMC_control_register"
+        Tag <0x50050000, 0x500503FF> "DCMI"

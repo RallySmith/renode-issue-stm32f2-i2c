@@ -1,13 +1,14 @@
 *** Settings ***
 Suite Setup                   Setup
 Suite Teardown                Teardown
+Test Timeout                  30 seconds
 Test Setup                    Reset Emulation
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
 
 *** Variables ***
 ${SCRIPT}                     ${CURDIR}/test.resc
-${UART}                       sysbus.uart
+${UART}                       sysbus.usart6
 
 
 *** Keywords ***
@@ -20,8 +21,8 @@ Load Script
 Should Run Test Case
     Load Script
     Start Emulation
-    Wait For Prompt On Uart     uart:~$
-    Write Line To Uart
-    Wait For Prompt On Uart     uart:~$
-    Write Line To Uart          demo ping
-    Wait For Line On Uart       pong
+    Wait For Line On Uart     INFO:<Platform I2C Test>
+    Wait For Line On Uart     PASS:<Multi-byte read 0x2D>
+    Wait For Line On Uart     EXIT:<done>
+
+    [Teardown]                Test Teardown

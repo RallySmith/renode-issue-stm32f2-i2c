@@ -1,0 +1,382 @@
+// RM0033 rev9 STM32F205, STM32F207, STM32F215, STM32F217
+
+// shares a lot of definitions with stm32f4.repl re. controller locations and NVIC positions etc.
+
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m3"
+    nvic: nvic
+
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    priorityMask: 0xF0
+    IRQ -> cpu@0
+
+// M2 SRAM (112K) @ sysbus 0x20000000
+// M3 SRAM (16K) @ sysbus 0x2001C000
+sram: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0x00020000
+
+// TODO: 4K backup SRAM @ 0x40024000 (BKPSRAM below)
+
+rom: Memory.MappedMemory @ sysbus 0x1FFF0000
+    size: 0x7800
+//    size: 0x7A00      // renode complains: Error E39: Memory size has to be aligned to guest page size.
+//    size: 0x10000	// original example // but does not account for device id fields
+
+// flash size actually depends on configured part so we use wrapper
+// .repl that includes this base stm32f2.repl and defines flash
+// space. e.g. stm32f2xxxg.repl
+//
+// We do not bother distinguishing the package identifier currently
+// for flash size
+//
+//                 flash
+// --------------  -----
+// STM32F20[57]xB   128K
+// STM32F20[57]xC   256K
+// STM32F20[57]xE   512K
+// STM32F20[57]xF   768K
+// STM32F20[57]xG  1024K
+//
+// STM32F21[57]xE   512K
+// STM32F21[57]xG  1024K
+
+// STM32F21[57] have CRYP
+
+pwr: Miscellaneous.STM32_PWR @ sysbus 0x40007000
+
+rcc: Miscellaneous.STM32F4_RCC @ sysbus 0x40023800
+    rtcPeripheral: rtc
+
+exti: IRQControllers.STM32F4_EXTI @ sysbus 0x40013C00
+    numberOfOutputLines: 24
+    [0-4] -> nvic@[6-10]
+    [5-9] -> nvicInput23@[0-4]
+    [10-15] -> nvicInput40@[0-5]
+    [16, 17, 18, 22] -> nvic@[1, 41, 42, 3]
+
+nvicInput23: Miscellaneous.CombinedInput @ none
+    numberOfInputs: 5
+    -> nvic@23
+
+nvicInput40: Miscellaneous.CombinedInput @ none
+    numberOfInputs: 6
+    -> nvic@40
+
+syscfg: Miscellaneous.STM32_SYSCFG @ sysbus 0x40013800
+    [0-15] -> exti@[0-15]
+
+dma1: DMA.STM32DMA @ sysbus 0x40026000
+    [0-7] -> nvic@[11-17,47]
+
+dma2: DMA.STM32DMA @ sysbus 0x40026400
+    [0-7] -> nvic@[56-60,68-70]
+
+gpioPortA: GPIOPort.STM32_GPIOPort @ sysbus <0x40020000, +0x400>
+    modeResetValue: 0xA8000000
+    pullUpPullDownResetValue: 0x64000000
+    [0-15] -> syscfg#0@[0-15]
+
+gpioPortB: GPIOPort.STM32_GPIOPort @ sysbus <0x40020400, +0x400>
+    modeResetValue: 0x00000280
+    outputSpeedResetValue: 0x000000C0
+    pullUpPullDownResetValue: 0x00000100
+    [0-15] -> syscfg#1@[0-15]
+
+gpioPortC: GPIOPort.STM32_GPIOPort @ sysbus <0x40020800, +0x400>
+    [0-15] -> syscfg#2@[0-15]
+
+gpioPortD: GPIOPort.STM32_GPIOPort @ sysbus <0x40020C00, +0x400>
+    [0-15] -> syscfg#3@[0-15]
+
+gpioPortE: GPIOPort.STM32_GPIOPort @ sysbus <0x40021000, +0x400>
+    [0-15] -> syscfg#4@[0-15]
+
+gpioPortF: GPIOPort.STM32_GPIOPort @ sysbus <0x40021400, +0x400>
+    [0-15] -> syscfg#5@[0-15]
+
+gpioPortG: GPIOPort.STM32_GPIOPort @ sysbus <0x40021800, +0x400>
+    [0-15] -> syscfg#6@[0-15]
+
+gpioPortH: GPIOPort.STM32_GPIOPort @ sysbus <0x40021C00, +0x400>
+    [0-15] -> syscfg#7@[0-15]
+
+gpioPortI: GPIOPort.STM32_GPIOPort @ sysbus <0x40022000, +0x400>
+    [0-15] -> syscfg#8@[0-15]
+
+usart1: UART.STM32_UART @ sysbus <0x40011000, +0x100>
+    -> nvic@37
+
+usart2: UART.STM32_UART @ sysbus <0x40004400, +0x100>
+    -> nvic@38
+
+usart3: UART.STM32_UART @ sysbus <0x40004800, +0x100>
+    -> nvic@39
+
+uart4: UART.STM32_UART @ sysbus <0x40004C00, +0x100>
+    -> nvic@52
+
+uart5: UART.STM32_UART @ sysbus <0x40005000, +0x100>
+    -> nvic@53
+
+usart6: UART.STM32_UART @ sysbus <0x40011400, +0x100>
+    -> nvic@71
+
+
+// CONSIDER: Ideally we do not want a fixed config in this "hardware
+// description" file but the link to be established at run-time based on
+// the values written to the DMA controller
+//
+// For the STM32F2 (RM0033) SPI we have:
+//   SPI1_RX	   dma2c3s0 (dma2c3s2)	mapping used depends on stream CHSEL
+//   SPI1_TX	   dma2c3s3 (dma2c3s5)
+//   SPI2_RX	   (dma1c0s3)		only a single mapping available
+//   SPI2_TX	   (dma1c0s4)
+//   SPI3_RX	   dma1c0s0 (dma1c0s2)	mapping used depends on stream CHSEL
+//   SPI3_TX	   (dma1c0s5) dma1c0s7
+
+// For the moment we hardwire the DMA controller and
+// stream for the SPI controllers below.
+
+spi1: SPI.STM32SPI @ sysbus 0x40013000
+    DMARecieve -> dma2@2
+
+spi2: SPI.STM32SPI @ sysbus 0x40003800
+    DMARecieve -> dma1@3
+
+spi3: SPI.STM32SPI @ sysbus 0x40003C00
+    DMARecieve -> dma1@2
+
+// I2C DMA mappings for STM32F2 (RM0033)
+//
+//   I2C1_RX	(dma1c1s0) dma1c1s5
+//   I2C1_TX	(dma1c1s6) dma1c1s7
+//   I2C2_RX	dma1c7s2 dma1c7s3
+//   I2C2_TX	dma1c7s7
+//   I2C3_RX	dma1c3s2
+//   I2C3_TX	dma1c3s4
+
+i2c1: I2C.STM32F4_I2C @ sysbus 0x40005400
+    EventInterrupt -> nvic@31
+    ErrorInterrupt -> nvic@32
+
+i2c2: I2C.STM32F4_I2C @ sysbus 0x40005800
+    EventInterrupt -> nvic@33
+    ErrorInterrupt -> nvic@34
+
+i2c3: I2C.STM32F4_I2C @ sysbus 0x40005C00
+    EventInterrupt -> nvic@72
+    ErrorInterrupt -> nvic@73
+
+rng: Miscellaneous.STM32F4_RNG @ sysbus 0x50060800
+    -> nvic@80
+
+// NOTE: Currently the model below just covers the specific ADC1 controller
+// We need:
+//   ADC1 at 0x40012000
+//   ADC2 at 0x40012100
+//   ADC3 at 0x40012200
+//   Common at 0x40012300
+//
+// F2(RM0033) F4(RM0090) are identical from the reference manuals
+//
+// For the STM32F2 (RM0033) ADC we have:
+//   ADC1  	   (dma2c0s0) dma2c0s4
+//   ADC2	   dma2c1s2 dma2c1s3
+//   ADC3	   dma2c2s0 dma2c2s1
+//
+// As for other controllers we ideally need to allow for run-time
+// mapping of the DMA events based on the DMA model configuration
+
+adc: Analog.STM32_ADC @ sysbus 0x40012000
+    IRQ -> nvic@18
+
+iwdg: Timers.STM32_IndependentWatchdog @ sysbus 0x40003000
+    frequency: 32000
+
+rtc: Timers.STM32F4_RTC @ sysbus 0x40002800
+    AlarmIRQ -> nvic@41
+    WakeupIRQ -> nvic@3
+    wakeupTimerFrequency: 32000
+// The default RTC wakeupTimerFrequency is set as 32768, but we
+// provide an initial LSI setting here to match how the LSI is
+// configured. Ideally the model should be configured at run-time as the
+// RCC configuration is updated (but that would mean a fork to allow
+// STM32F4_RCC.cs to reference STM32F4_RTC so we can trigger a
+// wakeupTimer.Frequency(v) change).
+
+// provide a setting if it is going to be driven from another clock;
+// and ideally the model should be configurable at run-time.
+
+timer1: Timers.STM32_Timer @ sysbus <0x40010000, +0x400>
+    IRQ -> nvic@27
+    frequency: 10000000
+    initialLimit: 0xFFFF
+// CONSIDER: TIM1_BRK_TIM9      NVIC#24    TIM1 Break *AND* TIM9 global
+// CONSIDER: TIM1_UP_TIM10      NVIC#25    TIM1 Update *AND* TIM10 global
+// CONSIDER: TIM1_TRG_COM_TIM11 NVIC#26    TIM1 Trigger *AND* TIM11 global
+// CONSIDER: TIM1_CC            NVIC#27    TIM1 CaptureCompare
+
+timer2: Timers.STM32_Timer @ sysbus <0x40000000, +0x400>
+    IRQ -> nvic@28
+    frequency: 10000000
+    initialLimit: 0xFFFFFFFF
+
+timer3: Timers.STM32_Timer @ sysbus <0x40000400, +0x400>
+    IRQ -> nvic@29
+    frequency: 60000000
+    initialLimit: 0xFFFF
+
+timer4: Timers.STM32_Timer @ sysbus <0x40000800, +0x400>
+    IRQ -> nvic@30
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer5: Timers.STM32_Timer @ sysbus <0x40000C00, +0x400>
+    IRQ -> nvic@50
+    frequency: 10000000
+    initialLimit: 0xFFFFFFFF
+
+// NOTE: NVIC#64 TIM6_DAC is TIM6 global *AND* DAC1/DAC2 underrun source
+timer6: Timers.STM32_Timer @ sysbus <0x40001000, +0x400>
+    IRQ -> nvic@54
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer7: Timers.STM32_Timer @ sysbus <0x40001400, +0x400>
+    IRQ -> nvic@55
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer8: Timers.STM32_Timer @ sysbus <0x40010400, +0x400>
+    IRQ -> nvic@46
+    frequency: 10000000
+    initialLimit: 0xFFFF
+// CONSIDER: TIM8_BRK_TIM12     NVIC#43	TIM8 Break *AND* TIM12 global
+// CONSIDER: TIM8_UP_TIM13      NVIC#44	TIM8 Update *AND* TIM13 global
+// CONSIDER: TIM8_TRG_COM_TIM14 NVIC#45	TIM8 Trigger *AND* TIM14 global
+// CONSIDER: TIM8_CC            NVIC#46	TIM8 CaptureCompare
+
+timer9: Timers.STM32_Timer @ sysbus <0x40014000, +0x400>
+    IRQ -> nvic@24
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer10: Timers.STM32_Timer @ sysbus <0x40014400, +0x400>
+    IRQ -> nvic@25
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer11: Timers.STM32_Timer @ sysbus <0x40014800, +0x400>
+    IRQ -> nvic@26
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer12: Timers.STM32_Timer @ sysbus <0x40001800, +0x400>
+    IRQ -> nvic@43
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer13: Timers.STM32_Timer @ sysbus <0x40001C00, +0x400>
+    IRQ -> nvic@44
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+timer14: Timers.STM32_Timer @ sysbus <0x40002000, +0x400>
+    IRQ -> nvic@45
+    frequency: 10000000
+    initialLimit: 0xFFFF
+
+can1: CAN.STMCAN @ sysbus <0x40006400, +0x400>
+    [0-3] -> nvic@[19-22]
+
+can2: CAN.STMCAN @ sysbus <0x40006800, +0x400>
+    [0-3] -> nvic@[63-66]
+    master: can1
+
+bitbandPeripherals: Miscellaneous.BitBanding @ sysbus <0x42000000, +0x2000000>
+    peripheralBase: 0x40000000
+
+bitbandSram: Miscellaneous.BitBanding @ sysbus <0x22000000, +0x200000>
+    peripheralBase: 0x20000000
+
+// Simple "data abort" model in reserved STM32F2 space
+//busfault: BusFault.DataAbort @ sysbus <0x08100000, +0x100000>
+
+// Simple DBGMCU implementation:
+// Could put in "filename: file.py" instead of embedding "script:"
+dbgmcu: Python.PythonPeripheral @ sysbus 0xE0042000
+    size: 0x10
+    initable: true
+    script: '''
+if request.isInit:
+    cr = 0
+    apb1_fz = 0
+    apb2_fz = 0
+if request.isWrite:
+    if request.offset == 0x4:
+      cr = (request.value & 0xE7)
+    elif request.offset == 0x8:
+      apb1_fz = (request.value & 0x06E01DFF)
+    elif request.offset == 0xC:
+      apb2_fz = (request.value & 0x00070003)
+elif request.isRead:
+    if request.offset == 0x0:
+        request.value = 0x201F0411
+    elif request.offset == 0x4:
+        request.value = cr
+    elif request.offset == 0x8:
+        request.value = apb1_fz
+    elif request.offset == 0xC:
+        request.value = apb2_fz
+'''
+
+// Simple Flash Interface Registers implementation:
+// Could put in "filename: file.py" instead of embedding "script:"
+// FINISH: The following does not yet track state or proper KEY checking. It is just a holding place during initial development.
+//    FLASH_KEYR (0x04): KEY1 == 0x45670123 KEY2 == 0xCDEF89AB
+// FLASH_OPTKEYR (0x08): KEY1 == 0x08192A3B KEY2 == 0x4C5D6E7F
+flash_ir: Python.PythonPeripheral @ sysbus 0x40023C00
+    size: 0x18
+    initable: true
+    script: '''
+if request.isInit:
+    acr = 0
+    keyr = 0
+    optkeyr = 0
+    sr = 0
+    cr = 0x80000000
+    optcr = 0x0FFFAAED
+if request.isWrite:
+    if request.offset == 0x0:
+      acr = (request.value & 0x00001F07)
+    elif request.offset == 0x4:
+      keyr = 0
+    elif request.offset == 0x8:
+      optkeyr = 0
+    elif request.offset == 0xC:
+      sr = (sr & ~(request.value & 0x000000F3))
+    elif request.offset == 0x10:
+      cr = (request.value & 0x8301037F)
+    elif request.offset == 0x14:
+      optcr = (request.valud & 0x0FFFFFEF)
+elif request.isRead:
+    if request.offset == 0x0:
+        request.value = acr
+    elif request.offset == 0xC:
+        request.value = sr
+    elif request.offset == 0x10:
+        request.value = cr
+    elif request.offset == 0x14:
+        request.value = optcr
+'''
+
+sysbus:
+    init:
+        ApplySVD //TODO STM32F2.svd
+        Tag <0x40002C00, 0x40002FFF> "WWDG"
+        Tag <0x50000000, 0x5003FFFF> "USB OTG FS"
+        Tag <0x40040000, 0x4007FFFF> "USB OTG HS"
+        Tag <0x40024000, 0x40024FFF> "BKPSRAM"
+        Tag <0x40023000, 0x400233FF> "CRC"
+        Tag <0x40012C00, 0x40012FFF> "SDIO"
+        Tag <0x40007400, 0x400077FF> "DAC"

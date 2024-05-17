@@ -1,0 +1,16 @@
+// STM32F2[01][57]xG 1MB
+
+flash: Memory.MappedMemory @ sysbus 0x08000000
+    size: 0x100000
+
+// CONSIDER: have request.type of 8bit, 16bit 32bit for width of request if required
+
+// Simple DeviceID FlashSize implementation:
+// Could put in "filename: file.py" instead of embedding "script:"
+flashsize: Python.PythonPeripheral @ sysbus 0x1FFF7A22
+    size: 0x2
+    script: '''
+if request.isRead:
+    if request.offset == 0x0:
+        request.value = 0x0400
+'''
