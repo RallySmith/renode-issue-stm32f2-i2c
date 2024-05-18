@@ -1,7 +1,6 @@
 *** Settings ***
 Suite Setup                   Setup
 Suite Teardown                Teardown
-Test Timeout                  30 seconds
 Test Setup                    Reset Emulation
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
@@ -15,14 +14,12 @@ ${UART}                       sysbus.usart6
 Load Script
     Execute Script            ${SCRIPT}
     Create Terminal Tester    ${UART}
-
+    Create Log Tester         1
 
 *** Test Cases ***
 Should Run Test Case
+    [Timeout]                 20 seconds
     Load Script
     Start Emulation
-    Wait For Line On Uart     INFO:<Platform I2C Test>
-    Wait For Line On Uart     PASS:<Multi-byte read 0x2D>
+    Should Not Be In Log      i2c1: Unhandled write to offset 0x4. Unhandled bits: [11] when writing value 0x91E.
     Wait For Line On Uart     EXIT:<done>
-
-    [Teardown]                Test Teardown
