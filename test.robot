@@ -22,4 +22,5 @@ Should Run Test Case
     Load Script
     Start Emulation
     Should Not Be In Log      i2c1: Unhandled write to offset 0x4. Unhandled bits: [11] when writing value 0x91E.
+    Wait For Line On Uart     PASS:<Platform test done
     Wait For Line On Uart     EXIT:<done>

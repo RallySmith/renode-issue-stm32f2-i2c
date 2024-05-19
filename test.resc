@@ -9,6 +9,9 @@ path add $ORIGIN
 
 include @platforms/devices/CS8422.cs
 
+include @platforms/peripherals/STM32DMA_Fixed.cs
+include @platforms/peripherals/STM32F4_I2C_Fixed.cs
+
 machine LoadPlatformDescription $ORIGIN/platforms/boards/stm32f207.repl
 
 $logfile ?= $ORIGIN/artifacts/renode.log
